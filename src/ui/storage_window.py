@@ -89,7 +89,14 @@ class StorageWindow(QWidget):
         image_path = item.text().split(": ")[1]
         pixmap = QPixmap(image_path)
         if not pixmap.isNull():
-            scaled_pixmap = pixmap.scaled(self.preview_label.width(), self.preview_label.height(), aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio, transformMode=Qt.TransformationMode.SmoothTransformation)
+            # Set a fixed size for the preview label
+            self.preview_label.setFixedSize(200, 200)  # Adjust the size as needed
+            # Scale the image to fit the fixed size
+            scaled_pixmap = pixmap.scaled(
+                self.preview_label.size(),
+                aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio,
+                transformMode=Qt.TransformationMode.SmoothTransformation
+            )
             self.preview_label.setPixmap(scaled_pixmap)
         else:
             self.preview_label.setText("Failed to load image.")
