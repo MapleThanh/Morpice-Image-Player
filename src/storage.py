@@ -22,6 +22,16 @@ def init_db():
         )
     ''')
     
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS collection_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            collection_id INTEGER,
+            image_id INTEGER,
+            FOREIGN KEY (collection_id) REFERENCES collections(id),
+            FOREIGN KEY (image_id) REFERENCES images(id)
+        )
+    ''')
+    
     # Create table for settings (last used configurations)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS settings (
