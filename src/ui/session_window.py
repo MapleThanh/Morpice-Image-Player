@@ -655,7 +655,7 @@ class SessionPlayerWindow(QWidget):
             self.show_current_image()
         
     def previous_image(self):
-        """Go back to the previous image and update the timing."""
+        """Go back to the previous image and update the timing, including breaks."""
         if self.current_index > 0:
             self.current_index -= 1  # Move to the previous image
 
@@ -669,15 +669,22 @@ class SessionPlayerWindow(QWidget):
         self.update_back_button_state()
 
     def update_timing_for_previous_image(self):
-        """Update the timing state when going back to the previous image."""
+        """Update the timing state when going back to the previous image, including breaks."""
         # Reset the timing state
         self.current_timing_index = 0
         self.images_displayed_for_current_timing = 0
 
         # Iterate through the images and timings to find the correct timing for the previous image
         for i in range(self.current_index):
+            # Get the current timing count, duration, and whether it's a break
+            current_timing_count, _, is_break = self.timings[self.current_timing_index]
+
+            # If it's a break, skip it and move to the previous timing
+            if is_break:
+                self.current_timing_index = (self.current_timing_index - 1) % len(self.timings)
+                continue
+
             # Check if we've displayed enough images for the current timing
-            current_timing_count, _, _ = self.timings[self.current_timing_index]
             if self.images_displayed_for_current_timing >= current_timing_count:
                 # Move to the next timing
                 self.current_timing_index = (self.current_timing_index + 1) % len(self.timings)
@@ -715,8 +722,6 @@ class SessionPlayerWindow(QWidget):
         """Display the current image or break message."""
         _, _, is_break = self.timings[self.current_timing_index]
 
-        self.btn_soft_skip.setDisabled(is_break)  # Disable soft skip for breaks
-        
         if is_break:
             # Show break message
             self.image_label.setText("You deserve a break!!")
@@ -736,6 +741,8 @@ class SessionPlayerWindow(QWidget):
                 self.update_image_size()
             else:
                 self.image_label.setText("Failed to load image.")
+
+        # Update the Back button state
         self.update_back_button_state()
 
     def update_image_size(self):
