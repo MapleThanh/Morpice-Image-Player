@@ -40,5 +40,14 @@ def init_db():
         )
     ''')
     
+    # Create table for session configurations
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            duration TEXT NOT NULL
+        )
+    ''')
+    
     conn.commit()
     conn.close()

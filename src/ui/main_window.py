@@ -1,4 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QVBoxLayout, QWidget
+from ui.session_window import SessionModeWindow
 from ui.storage_window import StorageWindow
 from ui.collection_window import CollectionsWindow
 from ui.fixed_window import FixedTimeModeWindow
@@ -93,4 +94,5 @@ class ImageTimerApp(QMainWindow):
         self.fixed_time_window.show()
     
     def on_session_button_clicked(self):
-        print("Session button clicked")
+        self.session_window = SessionModeWindow()
+        self.session_window.show()
