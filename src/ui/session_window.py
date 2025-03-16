@@ -497,7 +497,7 @@ class SessionPlayerWindow(QWidget):
         button_layout.addWidget(self.btn_reset)
 
         # Skip button
-        self.btn_skip = QPushButton("Skip (N)")
+        self.btn_skip = QPushButton("Hard Skip (N)")
         self.btn_skip.setStyleSheet("""
             QPushButton {
                 background-color: #4C566A;
@@ -515,6 +515,25 @@ class SessionPlayerWindow(QWidget):
         self.btn_skip.hide()  # Initially hidden
         button_layout.addWidget(self.btn_skip)
 
+        # Soft Skip button
+        self.btn_soft_skip = QPushButton("Soft Skip (M)")  # M for "middle" skip
+        self.btn_soft_skip.setStyleSheet("""
+            QPushButton {
+                background-color: #4C566A;
+                color: #ECEFF4;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 5px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #5E81AC;
+            }
+        """)
+        self.btn_soft_skip.clicked.connect(self.soft_skip_image)
+        self.btn_soft_skip.hide()  # Initially hidden
+        button_layout.addWidget(self.btn_soft_skip)
+        
         # Back button
         self.btn_back = QPushButton("Back (B)")
         self.btn_back.setStyleSheet("""
@@ -568,6 +587,7 @@ class SessionPlayerWindow(QWidget):
             self.btn_start.hide()
             self.btn_stop.show()
             self.btn_skip.show()
+            self.btn_soft_skip.show()
             self.btn_back.show()
             self.btn_reset.show()
             self.btn_end.show()
@@ -592,6 +612,7 @@ class SessionPlayerWindow(QWidget):
             self.btn_start.show()
             self.btn_stop.hide()
             self.btn_skip.hide()
+            self.btn_soft_skip.hide()
             self.btn_back.hide()
             self.btn_reset.hide()
             self.btn_end.hide()
@@ -614,6 +635,25 @@ class SessionPlayerWindow(QWidget):
         """Skip to the next image."""
         self.show_next_image()
 
+    def soft_skip_image(self):
+        _, _, is_break = self.timings[self.current_timing_index]
+
+        if not is_break:
+            """Skip to the next image but keep the current session segment timing and reset the timer."""
+            if self.current_index >= len(self.images) - 1:
+                self.current_index = 0  # Restart from the beginning
+                if self.shuffle_mode:
+                    random.shuffle(self.images)  # Reshuffle if shuffle mode is enabled
+            else:
+                self.current_index += 1
+
+            # Reset the timer for the current segment
+            self.remaining_time = self.timings[self.current_timing_index][1]  # Reset to the current timing's duration
+            self.update_timer_display()  # Update the timer label
+
+            # Show the next image
+            self.show_current_image()
+        
     def previous_image(self):
         """Go back to the previous image and update the timing."""
         if self.current_index > 0:
@@ -675,6 +715,8 @@ class SessionPlayerWindow(QWidget):
         """Display the current image or break message."""
         _, _, is_break = self.timings[self.current_timing_index]
 
+        self.btn_soft_skip.setDisabled(is_break)  # Disable soft skip for breaks
+        
         if is_break:
             # Show break message
             self.image_label.setText("You deserve a break!!")
@@ -778,6 +820,8 @@ class SessionPlayerWindow(QWidget):
                 self.reset_timer()
             elif a0.key() == Qt.Key.Key_N:  # Skip to next image
                 self.skip_image()
+            elif a0.key() == Qt.Key.Key_M:  # Soft skip to next image
+                self.soft_skip_image()
             elif a0.key() == Qt.Key.Key_B:  # Go back to previous image
                 self.previous_image()
             elif a0.key() == Qt.Key.Key_E:  # End session
