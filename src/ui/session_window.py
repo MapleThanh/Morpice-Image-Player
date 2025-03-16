@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QSize, QUrl
 from PyQt6.QtGui import QPixmap, QIcon, QPainter, QColor, QKeyEvent, QResizeEvent
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+from utils.session_utils import parse_session_duration
 
 import sqlite3
 import random
@@ -827,6 +828,14 @@ class CustomSessionDialog(QDialog):
     def setup_ui(self):
         layout = QVBoxLayout()
 
+        # Session selection dropdown
+        self.session_dropdown = QComboBox()
+        self.session_dropdown.addItem("New Session")
+        self.load_existing_sessions()
+        self.session_dropdown.currentIndexChanged.connect(self.load_selected_session)
+        layout.addWidget(QLabel("Select or Create a Session:"))
+        layout.addWidget(self.session_dropdown)
+
         # Session name input
         self.session_name_input = QLineEdit()
         self.session_name_input.setPlaceholderText("Session Name")
@@ -834,43 +843,33 @@ class CustomSessionDialog(QDialog):
 
         # Segment input fields
         segment_layout = QHBoxLayout()
-
-        # Number of segments input
         self.segment_count_input = QSpinBox()
-        self.segment_count_input.setRange(1, 999)  # Allow 1 to 999 repetitions
-        self.segment_count_input.setValue(1)  # Default to 1
+        self.segment_count_input.setRange(1, 999)
         segment_layout.addWidget(QLabel("Repeat:"))
         segment_layout.addWidget(self.segment_count_input)
 
-        # Duration input
         self.duration_input = QSpinBox()
-        self.duration_input.setRange(1, 999)  # Allow durations from 1 to 999
-        self.duration_input.setValue(10)  # Default duration
+        self.duration_input.setRange(1, 999)
         segment_layout.addWidget(QLabel("Duration:"))
         segment_layout.addWidget(self.duration_input)
 
-        # Unit of time dropdown
         self.unit_dropdown = QComboBox()
         self.unit_dropdown.addItems(["seconds", "minutes"])
-        segment_layout.addWidget(QLabel("Unit:"))
         segment_layout.addWidget(self.unit_dropdown)
 
-        # Type dropdown (active or break)
         self.type_dropdown = QComboBox()
         self.type_dropdown.addItems(["active", "break"])
-        segment_layout.addWidget(QLabel("Type:"))
         segment_layout.addWidget(self.type_dropdown)
 
-        # Add Segment button
         btn_add_segment = QPushButton("Add Segment")
         btn_add_segment.clicked.connect(self.add_segment)
         segment_layout.addWidget(btn_add_segment)
 
         layout.addLayout(segment_layout)
 
-        # List to display added segments (with drag-and-drop reordering)
+        # List to display added segments
         self.segments_list = QListWidget()
-        self.segments_list.setDragDropMode(QListWidget.DragDropMode.InternalMove)  # Enable drag-and-drop
+        self.segments_list.setDragDropMode(QListWidget.DragDropMode.InternalMove)
         layout.addWidget(self.segments_list)
 
         # Delete Segment button
@@ -890,65 +889,87 @@ class CustomSessionDialog(QDialog):
 
         layout.addLayout(btn_layout)
         self.setLayout(layout)
-
-        # Store added segments
         self.segments = []
 
+    def load_existing_sessions(self):
+        """Load existing sessions from the database."""
+        conn = sqlite3.connect("image_timer.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sessions")
+        sessions = cursor.fetchall()
+        conn.close()
+
+        for (name,) in sessions:
+            self.session_dropdown.addItem(name)
+
+    def load_selected_session(self):
+        """Load selected session details if editing an existing one."""
+        selected_session = self.session_dropdown.currentText()
+        if selected_session == "New Session":
+            self.session_name_input.clear()
+            self.segments_list.clear()
+            self.segments = []
+            return
+
+        conn = sqlite3.connect("image_timer.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT duration FROM sessions WHERE name = ?", (selected_session,))
+        session_data = cursor.fetchone()
+        conn.close()
+
+        if session_data:
+            self.session_name_input.setText(selected_session)
+            self.segments_list.clear()
+            self.segments = parse_session_duration(session_data[0])
+            for count, duration, unit, segment_type in self.segments:
+                if unit == "minutes":
+                    formatted_duration = f"{duration // 60}min"
+                else:
+                    formatted_duration = f"{duration}sec"
+                
+                self.segments_list.addItem(f"{count}x{formatted_duration} ({segment_type})")
+
     def add_segment(self):
-        """Add a segment to the session."""
         count = self.segment_count_input.value()
         duration = self.duration_input.value()
         unit = self.unit_dropdown.currentText()
         segment_type = self.type_dropdown.currentText()
 
-        # Add the segment to the list
         segment_str = f"{count}x{duration} {unit} ({segment_type})"
         self.segments_list.addItem(segment_str)
-
-        # Store the segment in a list for saving
         self.segments.append((count, duration, unit, segment_type))
 
     def delete_segment(self):
-        """Delete the selected segment from the list."""
         selected_item = self.segments_list.currentItem()
         if selected_item:
             row = self.segments_list.row(selected_item)
-            self.segments_list.takeItem(row)  # Remove from the list widget
-            del self.segments[row]  # Remove from the stored segments
+            self.segments_list.takeItem(row)
+            del self.segments[row]
 
     def save_session(self):
-        """Save the session with the added segments."""
         session_name = self.session_name_input.text().strip()
-
         if not session_name:
             QMessageBox.warning(self, "Error", "Please enter a session name.")
             return
-
         if not self.segments:
             QMessageBox.warning(self, "Error", "Please add at least one segment.")
             return
 
-        # Convert segments to a session duration string
         session_duration = self.convert_segments_to_duration(self.segments)
-
-        # Save the session to the database
         conn = sqlite3.connect("image_timer.db")
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO sessions (name, duration) VALUES (?, ?)", (session_name, session_duration))
+
+        if self.session_dropdown.currentText() == "New Session":
+            cursor.execute("INSERT INTO sessions (name, duration) VALUES (?, ?)", (session_name, session_duration))
+        else:
+            cursor.execute("UPDATE sessions SET duration = ? WHERE name = ?", (session_duration, session_name))
+        
         conn.commit()
         conn.close()
-
         self.close()
 
     def convert_segments_to_duration(self, segments):
-        """Convert segments to a session duration string."""
-        duration_str = ""
-        for count, duration, unit, segment_type in segments:
-            if unit == "minutes":
-                duration_str += f"{count}x{duration}min "
-            else:
-                duration_str += f"{count}x{duration}sec "
-            if segment_type == "break":
-                duration_str += "break "
-            duration_str += "+ "
-        return duration_str.strip(" + ")  # Remove the trailing "+ "
+        return " + ".join(
+            [f"{count}x{duration}{'min' if unit == 'minutes' else 'sec'} {'break' if segment_type == 'break' else ''}".strip()
+             for count, duration, unit, segment_type in segments]
+        )
